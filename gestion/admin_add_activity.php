@@ -43,15 +43,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $end_date = $_POST['end_date'];
     $min_grade = filter_var($_POST['min_grade'], FILTER_SANITIZE_NUMBER_INT);
     $max_grade = filter_var($_POST['max_grade'], FILTER_SANITIZE_NUMBER_INT);
-    $school_id = filter_var($_POST['school_id'], FILTER_SANITIZE_NUMBER_INT);
+    $school_ids = $_POST['school_ids'];
 
     $stmt = $pdo->prepare("INSERT INTO activities (name, description, start_date, end_date, min_grade, max_grade) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->execute([$name, $description, $start_date, $end_date, $min_grade, $max_grade]);
 
     $activity_id = $pdo->lastInsertId();
 
-    $stmt = $pdo->prepare("INSERT INTO school_course_activities (school_id, min_grade_id, max_grade_id, activity_id) VALUES (?, ?, ?, ?)");
-    $stmt->execute([$school_id, $min_grade, $max_grade, $activity_id]);
+    foreach ($school_ids as $school_id) {
+        $school_id = filter_var($school_id, FILTER_SANITIZE_NUMBER_INT);
+        $stmt = $pdo->prepare("INSERT INTO school_course_activities (school_id, min_grade_id, max_grade_id, activity_id) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$school_id, $min_grade, $max_grade, $activity_id]);
+    }
 
     $_SESSION['message'] = "Activity added successfully.";
     header("Location: admin_activities.php");
@@ -79,9 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
     <form method="POST" action="admin_add_activity.php">
         <div class="mb-3">
-            <label for="school_id" class="form-label">School</label>
-            <select class="form-control" id="school_id" name="school_id" required>
-                <option value="">Select School</option>
+            <label for="school_ids" class="form-label">Schools</label>
+            <select class="form-control" id="school_ids" name="school_ids[]" multiple required>
+                <option value="">Select Schools</option>
                 <?php foreach ($schools as $school): ?>
                     <option value="<?= $school['id'] ?>"><?= htmlspecialchars($school['name']) ?></option>
                 <?php endforeach; ?>

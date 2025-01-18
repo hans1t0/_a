@@ -44,6 +44,11 @@ $schools = $stmt->fetchAll();
 $stmt = $pdo->query("SELECT id, name FROM grades");
 $grades = $stmt->fetchAll();
 
+// Obtener los colegios asociados a la actividad
+$stmt = $pdo->prepare("SELECT school_id FROM school_course_activities WHERE activity_id = ?");
+$stmt->execute([$activityId]);
+$activity_schools = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
 // Procesar el formulario de edición
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = filter_var($_POST['name'], FILTER_SANITIZE_STRING);
@@ -52,13 +57,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $end_date = $_POST['end_date'];
     $min_grade = filter_var($_POST['min_grade'], FILTER_SANITIZE_NUMBER_INT);
     $max_grade = filter_var($_POST['max_grade'], FILTER_SANITIZE_NUMBER_INT);
-    $school_id = filter_var($_POST['school_id'], FILTER_SANITIZE_NUMBER_INT);
+    $school_ids = $_POST['school_ids'];
 
     $stmt = $pdo->prepare("UPDATE activities SET name = ?, description = ?, start_date = ?, end_date = ?, min_grade = ?, max_grade = ? WHERE id = ?");
     $stmt->execute([$name, $description, $start_date, $end_date, $min_grade, $max_grade, $activityId]);
 
-    $stmt = $pdo->prepare("UPDATE school_course_activities SET school_id = ?, min_grade_id = ?, max_grade_id = ? WHERE activity_id = ?");
-    $stmt->execute([$school_id, $min_grade, $max_grade, $activityId]);
+    // Eliminar las relaciones actuales de la actividad con los colegios
+    $stmt = $pdo->prepare("DELETE FROM school_course_activities WHERE activity_id = ?");
+    $stmt->execute([$activityId]);
+
+    // Insertar las nuevas relaciones de la actividad con los colegios
+    foreach ($school_ids as $school_id) {
+        $school_id = filter_var($school_id, FILTER_SANITIZE_NUMBER_INT);
+        $stmt = $pdo->prepare("INSERT INTO school_course_activities (school_id, min_grade_id, max_grade_id, activity_id) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$school_id, $min_grade, $max_grade, $activityId]);
+    }
 
     $_SESSION['message'] = "Activity updated successfully.";
     header("Location: admin_activities.php");
@@ -85,11 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
     <form method="POST" action="admin_edit_activity.php?id=<?= htmlspecialchars($activityId) ?>">
         <div class="mb-3">
-            <label for="school_id" class="form-label">School</label>
-            <select class="form-control" id="school_id" name="school_id" required>
-                <option value="">Select School</option>
+            <label for="school_ids" class="form-label">Schools</label>
+            <select class="form-control" id="school_ids" name="school_ids[]" multiple required>
+                <option value="">Select Schools</option>
                 <?php foreach ($schools as $school): ?>
-                    <option value="<?= $school['id'] ?>" <?= $school['id'] == $activity['school_id'] ? 'selected' : '' ?>><?= htmlspecialchars($school['name']) ?></option>
+                    <option value="<?= $school['id'] ?>" <?= in_array($school['id'], $activity_schools) ? 'selected' : '' ?>><?= htmlspecialchars($school['name']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
